@@ -2,7 +2,8 @@
 
 > Arduino Nano 33 BLE Sense의 **내장 센서**를 USB Serial 또는 Web Bluetooth로 브라우저 대시보드에 실시간 표시·기록·내보내기 하는 프로젝트. 학생이 상황에 따라 **USB / BLE를 골라** 쓸 수 있다. 고등학교 SW·AI·물리 실습용.
 
-🔗 **프로젝트 개요:** https://xparapx.github.io/Arduino_Nano33_BLE_WebUI_Demo/
+🔗 **프로젝트 개요:** https://xparapx.github.io/Arduino_Nano33_BLE_WebUI_Demo/  
+
 🖥️ **Dashboard(라이브):** https://xparapx.github.io/Arduino_Nano33_BLE_WebUI_Demo/dashboard.html
 
 `Nano 33 BLE Sense` · `nRF52840` · `Web Serial` · `Web Bluetooth` · `Chart.js` · `CSV·XLSX`
