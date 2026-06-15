@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nano 33 BLE WebUI — 프로젝트 개요</title>
+<style>
+  :root{
+    --ink:#15213a; --ink-soft:#4a5568; --paper:#fafbfd; --card:#fff;
+    --line:#e0e4ec; --accent:#2563eb; --accent-soft:#eef3ff;
+    --usb:#0d9488; --code-bg:#16202e; --code-ink:#d7e3f4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',system-ui,sans-serif;
+       background:var(--paper);color:var(--ink);line-height:1.75;font-size:15px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px 80px}
+  header.doc{border-bottom:3px solid var(--ink);padding:48px 0 28px;margin-bottom:8px}
+  .doc-kicker{font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+              color:var(--accent);font-weight:700;margin-bottom:10px}
+  header.doc h1{font-size:30px;line-height:1.3;font-weight:800;letter-spacing:-.01em}
+  .lead{font-size:16px;color:var(--ink-soft);margin:16px 0 18px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{font-size:12.5px;font-weight:600;color:var(--accent);
+        background:var(--accent-soft);border:1px solid #cfe0ff;border-radius:999px;padding:4px 12px}
+  .cta{display:inline-flex;align-items:center;gap:8px;margin-top:22px;
+       background:var(--accent);color:#fff;text-decoration:none;font-weight:700;
+       border-radius:10px;padding:12px 22px;font-size:15px}
+  .cta:hover{background:#1d4ed8}
+  section{margin-bottom:48px;padding-top:14px}
+  h2{font-size:21px;font-weight:800;padding-bottom:10px;margin:30px 0 20px;
+     border-bottom:2px solid var(--line)}
+  h2 .secnum{color:var(--accent);margin-right:8px;font-variant-numeric:tabular-nums}
+  h3{font-size:15px;font-weight:700;margin:22px 0 8px;color:var(--ink-soft)}
+  p{margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 12px;text-align:left}
+  th{background:var(--accent-soft);font-weight:700}
+  .flow{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:18px;font-size:13px;line-height:1.9;overflow:auto;
+        font-family:'SF Mono',Consolas,monospace;white-space:pre}
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;
+      padding:16px 18px;overflow:auto;font-size:13px;line-height:1.6;margin:14px 0;
+      font-family:'SF Mono',Consolas,monospace}
+  .callout{border-radius:10px;padding:14px 18px;margin:16px 0;
+           background:var(--accent-soft);border:1px solid #cfe0ff;font-size:14px}
+  .callout b{color:var(--accent)}
+  ul{margin-left:20px}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);
+         font-size:13px;color:var(--ink-soft)}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <div class="doc-kicker">USB · BLE 듀얼 센서 대시보드 · SW·AI·물리 실습</div>
+    <h1>Nano 33 BLE WebUI — 센서 대시보드</h1>
+    <p class="lead">Arduino Nano 33 BLE Sense의 내장 센서를 USB Serial 또는 Web Bluetooth로
+    브라우저 대시보드에 실시간 표시·기록·내보내기. 학생이 상황에 따라 USB / BLE를 골라 쓴다.</p>
+    <div class="chips">
+      <span class="chip">Nano 33 BLE Sense</span><span class="chip">nRF52840</span>
+      <span class="chip">Web Serial</span><span class="chip">Web Bluetooth</span>
+      <span class="chip">Chart.js</span><span class="chip">CSV·XLSX</span>
+    </div>
+    <a class="cta" href="dashboard.html">🖥️ 대시보드 열기 →</a>
+  </header>
+
+  <section>
+    <h2><span class="secnum">01</span>프로젝트 요약</h2>
+    <p>Nano 33 BLE Sense가 내장 센서(가속도·온습도·기압·광/제스처 등)를 읽어 <b>USB Serial</b> 또는
+    <b>BLE</b>로 전송한다. 브라우저 단일 HTML 대시보드가 이를 수신·파싱해 Chart.js로 실시간 그래프를 그리고,
+    수집 데이터를 CSV/XLSX로 내보낸다. 무선이 필요 없으면 USB로 확실하게, 무선 실습이 필요하면 BLE로 —
+    한 대시보드에서 모드만 바꾸면 된다.</p>
+    <div class="callout"><b>교육 포인트</b> — "센서값이 어떻게 화면까지 오는가"를
+    <b>보드 → 통신 → 브라우저</b>의 데이터 흐름으로 직접 따라가 볼 수 있다.</div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">02</span>프로세스 흐름도</h2>
+    <div class="flow"> ① 센서 측정       ② 펌웨어 전송          ③ 브라우저 수신        ④ 시각화·기록       ⑤ 내보내기
+  내장 센서 읽기     USB Serial / BLE       파싱(processLine /     Chart.js 실시간      CSV · XLSX
+                   (sendData)             onBLELine)            그래프 + 수집         파일 저장
+ [Nano 33 BLE] ─USB/BLE→ [브라우저 대시보드] ─pushData→ [차트] ─export→ [파일]</div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">03</span>준비물</h2>
+    <h3>하드웨어</h3>
+    <table>
+      <tr><th>항목</th><th>비고</th></tr>
+      <tr><td>Arduino Nano 33 BLE Sense</td><td>Rev1 또는 Rev2 (센서 내장)</td></tr>
+      <tr><td>USB 케이블</td><td>전원 + Serial 통신</td></tr>
+      <tr><td>(선택) LiPo 3.7V 배터리</td><td>BLE 무선 동작 시</td></tr>
+      <tr><td>PC</td><td>Chrome 또는 Edge</td></tr>
+    </table>
+    <h3>소프트웨어 · 라이브러리</h3>
+    <table>
+      <tr><th>도구</th><th>비고</th></tr>
+      <tr><td>Arduino IDE 2.x</td><td>Arduino Mbed OS Nano Boards</td></tr>
+      <tr><td>ArduinoBLE</td><td>BLE 모드용</td></tr>
+      <tr><td>센서 라이브러리</td><td>Rev1: HTS221·LSM9DS1 / Rev2: HS300x·BMI270</td></tr>
+      <tr><td>Chrome / Edge</td><td>Web Serial·Web Bluetooth — Safari·Firefox 불가</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="secnum">04</span>기술 스택</h2>
+    <ul>
+      <li><b>센서</b> — Nano 33 BLE Sense 내장 IMU·온습도·기압·광/제스처</li>
+      <li><b>MCU</b> — nRF52840 (BLE 전용, Wi-Fi 없음), FICR DEVICEID로 보드 고유 식별</li>
+      <li><b>통신</b> — USB Serial(Web Serial API) / BLE GATT(Web Bluetooth API)</li>
+      <li><b>UI</b> — 단일 HTML, Chart.js 실시간 차트, CSV·XLSX 내보내기, 다크/라이트 테마</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="secnum">05</span>저장소 구조</h2>
+    <pre>Arduino_Nano33_BLE_WebUI_Demo/
+├─ firmware/                       # 보드 펌웨어 (.ino)
+│  ├─ nano33ble_dashboard_rev1.ino # Rev1
+│  └─ nano33ble_dashboard_rev2.ino # Rev2
+├─ docs/                           # GitHub Pages (/docs)
+│  ├─ index.html                   # 이 개요 페이지
+│  ├─ dashboard.html               # 배포용 (라이브러리 내장·오프라인)
+│  └─ dashboard_cdn_dev.html       # 개발용 (CDN 로드·인터넷 필요)
+├─ README.md
+└─ .gitignore</pre>
+    <div class="callout"><b>접속</b> — Web Bluetooth는 <code>file://</code>에서 동작하지 않으므로
+    GitHub Pages(https)로 호스팅해야 BLE가 연결된다. 개요·대시보드가 모두 <code>docs/</code>에 있으므로
+    Pages 소스는 <b><code>/docs</code></b>로 둔다(다른 프로젝트와 동일).</div>
+  </section>
+
+  <footer>Maintainer: physics-jh · 고등학교 SW·AI·물리 실습용 데모</footer>
+</div>
+</body>
+</html>

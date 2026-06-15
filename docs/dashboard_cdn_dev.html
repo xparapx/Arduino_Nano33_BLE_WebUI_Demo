@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arduino Nano 33 BLE · 센서 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ── 다크 테마 ── */
+:root{
+  --bg:#0d0f14;--bg2:#13161d;--bg3:#1a1e28;--bg4:#222736;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#e8eaf0;--text2:#8892a4;--text3:#555f72;
+  --accent:#3d7eff;--accent2:#5b94ff;
+  --green:#22d3a0;--red:#ff4f6a;--amber:#f5a623;
+  --purple:#a78bfa;--teal:#2dd4bf;
+  --shadow:rgba(0,0,0,0.4);
+  --r:9px;--rl:13px;
+}
+/* ── 라이트 테마 ── */
+body.light{
+  --bg:#f0f2f7;--bg2:#ffffff;--bg3:#f5f6fa;--bg4:#e8eaf0;
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
+  --text:#1a1e28;--text2:#555f72;--text3:#8892a4;
+  --shadow:rgba(0,0,0,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;overflow:hidden;font-size:13px;transition:background .2s,color .2s;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ── 레이아웃 ── */
+.app{display:flex;flex-direction:column;height:100vh;}
+header{display:flex;align-items:center;justify-content:space-between;padding:0 18px;height:50px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;box-shadow:0 1px 4px var(--shadow);}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+.logo-text{font-size:13px;font-weight:700;letter-spacing:.3px;}
+.logo-sub{font-size:11px;color:var(--text3);}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.status-pill{display:flex;align-items:center;gap:6px;padding:4px 11px;border-radius:20px;background:var(--bg3);border:1px solid var(--border);font-size:12px;color:var(--text2);}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+.sdot.on{background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite;}
+.sdot.rec{background:var(--red);box-shadow:0 0 6px var(--red);animation:blink .7s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── 테마 토글 버튼 ── */
+.theme-toggle{width:34px;height:34px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .15s;}
+.theme-toggle:hover{background:var(--bg4);}
+
+/* ── 메인 ── */
+.main{display:flex;flex:1;overflow:hidden;}
+
+/* ── 사이드바 ── */
+.sidebar{width:290px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.sec{padding:14px 16px;border-bottom:1px solid var(--border);}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:1.4px;color:var(--text3);text-transform:uppercase;margin-bottom:10px;}
+
+/* ── 버튼 ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 13px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:12px;font-weight:500;cursor:pointer;transition:all .14s;white-space:nowrap;font-family:inherit;}
+.btn:hover:not(:disabled){background:var(--bg4);border-color:var(--text3);}
+.btn:active:not(:disabled){transform:scale(.97);}
+.btn:disabled{opacity:.32;cursor:not-allowed;}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover:not(:disabled){background:var(--accent2);border-color:var(--accent2);}
+.btn.full{width:100%;}
+.btn svg{width:12px;height:12px;flex-shrink:0;}
+
+/* ── 수집 토글 버튼 ── */
+.rec-btn{width:100%;padding:10px;border-radius:var(--r);border:none;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;letter-spacing:.3px;}
+.rec-btn.idle{background:rgba(34,211,160,.12);border:1.5px solid rgba(34,211,160,.4);color:var(--green);}
+.rec-btn.idle:hover{background:rgba(34,211,160,.22);}
+.rec-btn.waiting{background:rgba(245,166,35,.1);border:1.5px solid rgba(245,166,35,.4);color:var(--amber);}
+.rec-btn.running{background:rgba(255,79,106,.12);border:1.5px solid rgba(255,79,106,.4);color:var(--red);}
+.rec-btn.running:hover{background:rgba(255,79,106,.22);}
+.rec-btn:disabled{opacity:.3;cursor:not-allowed;}
+.rec-dot{width:9px;height:9px;border-radius:50%;}
+.rec-btn.idle .rec-dot{background:var(--green);}
+.rec-btn.waiting .rec-dot{background:var(--amber);animation:blink .9s infinite;}
+.rec-btn.running .rec-dot{background:var(--red);animation:blink .6s infinite;}
+
+/* ── 센서 리스트 ── */
+.sensor-list{display:flex;flex-direction:column;gap:6px;}
+.sensor-item{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:var(--r);background:var(--bg3);border:1px solid var(--border);cursor:pointer;transition:all .14s;}
+.sensor-item:hover{border-color:var(--border2);}
+.sensor-item.active{border-color:rgba(61,126,255,.45);background:rgba(61,126,255,.07);}
+.s-left{display:flex;align-items:center;gap:9px;}
+.s-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.s-name{font-size:13px;font-weight:600;}
+.s-axes{font-size:10px;color:var(--text3);margin-top:2px;}
+.toggle{width:30px;height:17px;border-radius:9px;background:var(--bg4);position:relative;transition:background .2s;flex-shrink:0;border:1px solid var(--border);}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:var(--text3);transition:all .2s;}
+.sensor-item.active .toggle{background:var(--accent);border-color:var(--accent);}
+.sensor-item.active .toggle::after{background:#fff;transform:translateX(13px);}
+
+/* ── 샘플레이트 ── */
+.srate-wrap{display:flex;flex-direction:column;gap:6px;}
+.srate-row-lbl{font-size:10px;color:var(--text3);margin-bottom:3px;font-weight:500;}
+.srate-grid{display:grid;gap:4px;}
+.srate-grid.rt{grid-template-columns:repeat(5,1fr);}
+.srate-grid.lt{grid-template-columns:repeat(5,1fr);}
+.srate-btn{padding:6px 0;text-align:center;font-size:11px;font-weight:600;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:all .13s;line-height:1.3;}
+.srate-btn:hover{border-color:var(--border2);color:var(--text);}
+.srate-btn.active{background:rgba(61,126,255,.15);border-color:rgba(61,126,255,.5);color:var(--accent2);}
+.srate-btn.lt-active{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.5);color:var(--purple);}
+.srate-unit{font-size:9px;color:var(--text3);display:block;font-weight:400;}
+.srate-btn.lt-active .srate-unit{color:var(--purple);opacity:.7;}
+.divider{height:1px;background:var(--border);margin:2px 0;}
+
+/* ── 트리거 ── */
+.trig-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.trig-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:9px;}
+.trig-lbl{font-size:10px;color:var(--text3);margin-bottom:5px;font-weight:600;}
+.trig-row{display:flex;align-items:center;gap:5px;}
+.trig-chk{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
+.trig-inp{flex:1;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:4px 6px;font-size:11px;outline:none;width:0;font-family:inherit;}
+.trig-inp:focus{border-color:var(--accent);}
+.trig-inp:disabled{opacity:.4;}
+.trig-unit{font-size:10px;color:var(--text3);flex-shrink:0;}
+.trig-info{font-size:10px;color:var(--text3);margin-top:6px;text-align:center;padding:4px 8px;background:var(--bg3);border-radius:6px;border:1px solid var(--border);line-height:1.5;}
+
+/* ── 통계 ── */
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:9px;text-align:center;}
+.stat-val{font-size:18px;font-weight:700;color:var(--text);font-family:'JetBrains Mono','Fira Code',monospace;}
+.stat-lbl{font-size:9px;color:var(--text3);margin-top:2px;}
+
+/* ── 내보내기 ── */
+.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+
+/* ── 차트 영역 ── */
+.chart-area{flex:1;overflow-y:auto;padding:14px;background:var(--bg);}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.chart-grid.single{grid-template-columns:1fr;}
+.chart-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);gap:12px;text-align:center;}
+.chart-empty-icon{font-size:40px;opacity:.2;}
+.chart-empty h3{font-size:15px;color:var(--text2);font-weight:600;}
+.chart-empty p{font-size:12px;line-height:1.7;max-width:260px;}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:0 2px 8px var(--shadow);}
+.chart-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid var(--border);}
+.chart-title-row{display:flex;align-items:center;gap:8px;}
+.chart-bar{width:3px;height:14px;border-radius:2px;}
+.chart-title{font-size:12px;font-weight:700;}
+.chart-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.live-vals{display:flex;gap:10px;}
+.lv{display:flex;flex-direction:column;align-items:flex-end;font-size:11px;}
+.lv-num{font-weight:700;font-family:'JetBrains Mono','Fira Code',monospace;}
+.lv-lbl{font-size:9px;color:var(--text3);}
+.chart-body{padding:8px 12px 12px;}
+
+/* ── 시리얼 로그 ── */
+.log-panel{height:108px;background:var(--bg);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.log-hdr{display:flex;align-items:center;justify-content:space-between;padding:5px 14px;border-bottom:1px solid var(--border);}
+.log-title{font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--text3);text-transform:uppercase;}
+.log-body{flex:1;overflow-y:auto;padding:4px 14px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:11px;line-height:1.75;}
+.ll{color:var(--text2);}
+.ll.rx{color:var(--green);}
+.ll.tx{color:var(--accent);}
+.ll.err{color:var(--red);}
+.ll.sys{color:var(--text3);}
+.lt-span{color:var(--text3);margin-right:6px;}
+.tx-inp{background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;width:160px;}
+.tx-inp:focus{border-color:var(--accent);}
+
+/* ── baud select ── */
+select.baud{background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--r);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;cursor:pointer;flex:1;}
+
+/* ── 모달 ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal{width:680px;max-width:96vw;max-height:88vh;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column;transform:translateY(8px);transition:transform .18s;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+.modal-overlay.show .modal{transform:translateY(0);}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.modal-title{font-size:14px;font-weight:700;}
+.modal-close{width:24px;height:24px;border-radius:6px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{background:var(--bg4);}
+.modal-body{flex:1;overflow-y:auto;padding:16px 18px;}
+.modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center;}
+.tab-bar{display:flex;gap:3px;margin-bottom:12px;flex-wrap:wrap;}
+.tab{padding:6px 13px;border-radius:7px;font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;transition:all .13s;}
+.tab:hover{color:var(--text2);background:var(--bg3);}
+.tab.active{color:var(--text);background:var(--bg4);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:11px;line-height:1.75;color:#a8b5c8;overflow:auto;white-space:pre;max-height:500px;}
+body.light .code-block{color:#3a4a6b;background:#f8f9fc;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600;background:rgba(61,126,255,.1);color:var(--accent2);border:1px solid rgba(61,126,255,.2);}
+.badge.rev1{background:rgba(34,211,160,.1);color:var(--green);border-color:rgba(34,211,160,.25);}
+.badge.rev2{background:rgba(167,139,250,.1);color:var(--purple);border-color:rgba(167,139,250,.25);}
+.fw-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;}
+.fw-badges{display:flex;gap:5px;flex-wrap:wrap;}
+.ide-info{font-size:11px;color:var(--text3);margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:7px;border:1px solid var(--border);line-height:1.6;}
+.ide-info a{color:var(--accent2);text-decoration:none;}
+.ide-info a:hover{text-decoration:underline;}
+.xs{font-size:10px;color:var(--text3);}
+
+/* 연결 모드 버튼 */
+.conn-mode-btn{
+  padding:10px 6px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--bg3);color:var(--text2);font-size:11px;font-weight:600;
+  cursor:pointer;transition:all .15s;text-align:center;font-family:inherit;
+}
+.conn-mode-btn:hover{border-color:var(--border2);color:var(--text);}
+.conn-mode-btn.active{
+  background:rgba(61,126,255,0.12);border-color:rgba(61,126,255,0.45);color:var(--accent2);
+}
+.conn-mode-btn.active.ble-mode{
+  background:rgba(167,139,250,0.12);border-color:rgba(167,139,250,0.45);color:var(--purple);
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── 헤더 ── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">BLE</div>
+    <div>
+      <div class="logo-text">Arduino Nano 33 BLE <span class="logo-sub">Sensor Dashboard</span></div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="status-pill">
+      <div class="sdot" id="conn-dot"></div>
+      <span id="conn-label">연결 안됨</span>
+    </div>
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="테마 변경">🌙</button>
+    <button class="btn" onclick="showFW()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 9.5h4"/></svg>
+      펌웨어 코드
+    </button>
+  </div>
+</header>
+
+<div class="main">
+
+<!-- ── 사이드바 ── -->
+<aside class="sidebar">
+
+  <!-- 연결 모드 선택 -->
+  <div class="sec">
+    <div class="sec-lbl">연결 방식</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+      <button class="conn-mode-btn active" id="mode-usb" onclick="setConnMode('usb')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:18px;height:18px;display:block;margin:0 auto 4px;">
+          <path d="M12 2v6M9 5l3-3 3 3M8 8h8v6H8zM10 14v4M14 14v4M8 18h8"/>
+        </svg>
+        USB Serial
+      </button>
+      <button class="conn-mode-btn" id="mode-ble" onclick="setConnMode('ble')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:18px;height:18px;display:block;margin:0 auto 4px;">
+          <path d="M6.5 6.5l11 11M17.5 6.5l-11 11M12 3l5 4-5 4V3zM12 21l-5-4 5-4v8z"/>
+        </svg>
+        Bluetooth
+      </button>
+    </div>
+
+    <!-- USB 패널 -->
+    <div id="panel-usb">
+      <select class="baud" id="baud-sel" style="width:100%;margin-bottom:6px;">
+        <option value="9600">9600 baud</option>
+        <option value="57600">57600 baud</option>
+        <option value="115200" selected>115200 baud</option>
+      </select>
+      <div style="display:flex;gap:6px;">
+        <button class="btn primary full" id="connect-btn" onclick="connectSerial()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M10 5l3 3-3 3"/></svg>
+          포트 연결
+        </button>
+        <button class="btn" id="disconnect-btn" onclick="disconnectSerial()" disabled title="연결 해제" style="flex-shrink:0;">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10"/><path d="M6 5L3 8l3 3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- BLE 패널 -->
+    <div id="panel-ble" style="display:none;">
+      <div class="ble-pin-wrap">
+
+        <!-- DEVICE ID 안내 -->
+        <div style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.25);
+             border-radius:var(--r);padding:9px 11px;margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:var(--purple);margin-bottom:5px;letter-spacing:.5px;">
+            DEVICE ID 확인 방법
+          </div>
+          <div class="xs" style="color:var(--text2);line-height:1.7;">
+            최초 1회: USB 연결 → 시리얼 모니터<br>
+            <span style="font-family:var(--font);color:var(--green);"># DEVICE ID : A3F7</span><br>
+            보드에 스티커 부착 → 이후 무선 사용
+          </div>
+        </div>
+
+        <!-- ID 입력 -->
+        <div style="margin-bottom:6px;">
+          <div class="xs" style="margin-bottom:4px;color:var(--text2);">보드 DEVICE ID (4자리)</div>
+          <input type="text" id="ble-pin" maxlength="4" placeholder="예) A3F7"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border2);
+                   color:var(--text);border-radius:var(--r);padding:10px;
+                   font-size:20px;font-weight:700;text-align:center;
+                   letter-spacing:8px;outline:none;font-family:var(--font);
+                   text-transform:uppercase;margin-bottom:6px;"
+            oninput="this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,'');
+                     const v=this.value.padEnd(4,'?').slice(0,4);
+                     document.getElementById('ble-name-preview').textContent='BLE-'+v;"
+            onkeydown="if(event.key==='Enter')connectBLE()">
+          <button class="btn primary full" onclick="connectBLE()" id="ble-connect-btn"
+            style="width:100%;padding:9px;">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px;">
+              <path d="M4 4l8 8M12 4l-8 8M8 1l4 3-4 3V1zM8 15l-4-3 4-3v6z"/>
+            </svg>
+            BLE 연결
+          </button>
+        </div>
+
+        <!-- 연결된 장치 정보 -->
+        <div class="ble-device-info" id="ble-device-info"
+          style="display:none;padding:8px 10px;margin-bottom:6px;
+          background:rgba(34,211,160,0.08);border:1px solid rgba(34,211,160,0.25);
+          border-radius:var(--r);font-size:11px;color:var(--green);">
+        </div>
+
+        <button class="btn full" id="ble-disconnect-btn" onclick="disconnectBLE()" disabled
+          style="font-size:11px;">BLE 연결 해제</button>
+      </div>
+
+      <div class="xs" style="margin-top:8px;padding:7px 9px;background:var(--bg3);
+           border-radius:6px;border:1px solid var(--border);line-height:1.7;color:var(--text2);">
+        BLE 장치명: <span style="font-family:var(--font);color:var(--purple);" id="ble-name-preview">BLE-????</span><br>
+        ※ Chrome / Edge 필요 &nbsp;·&nbsp; 20Hz 이하 권장
+      </div>
+    </div>
+  </div>
+
+  <!-- 센서 -->
+  <div class="sec">
+    <div class="sec-lbl">센서 활성화</div>
+    <div class="sensor-list" id="sensor-list"></div>
+    <div style="display:flex;gap:5px;margin-top:8px;">
+      <button class="btn full" onclick="toggleAll(true)">모두 켜기</button>
+      <button class="btn full" onclick="toggleAll(false)">모두 끄기</button>
+    </div>
+  </div>
+
+  <!-- 샘플레이트 -->
+  <div class="sec">
+    <div class="sec-lbl">샘플레이트</div>
+    <div class="srate-wrap">
+      <div>
+        <div class="srate-row-lbl">실시간 (Hz)</div>
+        <div class="srate-grid rt" id="sr-rt">
+          <div class="srate-btn active" data-hz="1"   onclick="setSR(this,'rt')">1<span class="srate-unit">Hz</span></div>
+          <div class="srate-btn"       data-hz="10"  onclick="setSR(this,'rt')">10<span class="srate-unit">Hz</span></div>
+          <div class="srate-btn"       data-hz="20"  onclick="setSR(this,'rt')">20<span class="srate-unit">Hz</span></div>
+          <div class="srate-btn"       data-hz="50"  onclick="setSR(this,'rt')">50<span class="srate-unit">Hz</span></div>
+          <div class="srate-btn"       data-hz="100" onclick="setSR(this,'rt')">100<span class="srate-unit">Hz</span></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div>
+        <div class="srate-row-lbl">롱텀 수집 간격 <span style="color:var(--purple);font-size:9px;">(수집 후 파일저장)</span></div>
+        <div class="srate-grid lt" id="sr-lt">
+          <div class="srate-btn" data-min="1"   onclick="setSR(this,'lt')">1<span class="srate-unit">분</span></div>
+          <div class="srate-btn" data-min="5"   onclick="setSR(this,'lt')">5<span class="srate-unit">분</span></div>
+          <div class="srate-btn" data-min="10"  onclick="setSR(this,'lt')">10<span class="srate-unit">분</span></div>
+          <div class="srate-btn" data-min="30"  onclick="setSR(this,'lt')">30<span class="srate-unit">분</span></div>
+          <div class="srate-btn" data-min="60"  onclick="setSR(this,'lt')">1<span class="srate-unit">시간</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="xs" style="margin-top:6px;text-align:center;" id="buf-lbl">버퍼: 10s × 1Hz = 10pt</div>
+  </div>
+
+  <!-- 수집 조건 -->
+  <div class="sec">
+    <div class="sec-lbl">수집 조건 (트리거)</div>
+    <div class="trig-grid">
+      <div class="trig-item">
+        <div class="trig-lbl">⏱ 시작 지연</div>
+        <div class="trig-row">
+          <input type="checkbox" class="trig-chk" id="ts-chk" onchange="updateTrig()">
+          <input type="number" class="trig-inp" id="ts-val" value="5" min="0" disabled>
+          <span class="trig-unit">초 후</span>
+        </div>
+      </div>
+      <div class="trig-item">
+        <div class="trig-lbl">⏹ 자동 종료</div>
+        <div class="trig-row">
+          <input type="checkbox" class="trig-chk" id="te-chk" onchange="updateTrig()">
+          <input type="number" class="trig-inp" id="te-val" value="60" min="1" disabled>
+          <span class="trig-unit">초 후</span>
+        </div>
+      </div>
+    </div>
+    <div class="trig-info" id="trig-info">조건 없음 — 수동 제어</div>
+  </div>
+
+  <!-- 수집 버튼 -->
+  <div class="sec">
+    <div class="sec-lbl">데이터 수집</div>
+    <button class="rec-btn idle" id="rec-btn" onclick="toggleRecord()" disabled>
+      <div class="rec-dot"></div>
+      <span id="rec-txt">수집 시작</span>
+    </button>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-val" id="rec-samples">0</div>
+        <div class="stat-lbl">수집 레코드</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="rec-time">0:00</div>
+        <div class="stat-lbl">경과 시간</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 내보내기 -->
+  <div class="sec">
+    <div class="sec-lbl">데이터 내보내기</div>
+    <div class="export-grid">
+      <button class="btn full" id="exp-csv" onclick="exportCSV()" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M3 13h10"/></svg>
+        CSV
+      </button>
+      <button class="btn full" id="exp-xlsx" onclick="exportXLSX()" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M3 13h10"/></svg>
+        XLSX
+      </button>
+    </div>
+    <button class="btn full" id="exp-clear" onclick="clearData()" disabled style="margin-top:5px;font-size:11px;">데이터 초기화</button>
+    <div class="xs" style="margin-top:5px;text-align:center;">저장: <span id="rec-count">0</span>개 · <span id="exp-range">—</span></div>
+  </div>
+
+  <!-- 데모 -->
+  <div class="sec">
+    <button class="btn full" id="demo-btn" onclick="runDemo()">
+      <svg viewBox="0 0 16 16" fill="currentColor"><polygon points="3,2 14,8 3,14"/></svg>
+      데모 모드
+    </button>
+  </div>
+
+</aside>
+
+<!-- ── 차트 + 로그 ── -->
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+  <div class="chart-area" id="chart-area">
+    <div class="chart-empty" id="chart-empty">
+      <div class="chart-empty-icon">📡</div>
+      <h3>센서를 활성화하세요</h3>
+      <p>좌측 패널에서 센서를 선택하면<br>실시간 차트가 표시됩니다.</p>
+    </div>
+    <div class="chart-grid" id="chart-grid" style="display:none;"></div>
+  </div>
+  <div class="log-panel">
+    <div class="log-hdr">
+      <div class="log-title">시리얼 모니터</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input class="tx-inp" id="tx-inp" placeholder="명령 전송..." onkeydown="if(event.key==='Enter')sendCmd()">
+        <button class="btn" style="padding:4px 9px;font-size:11px;" onclick="sendCmd()">전송</button>
+        <button class="btn" style="padding:4px 9px;font-size:11px;" onclick="clearLog()">지우기</button>
+      </div>
+    </div>
+    <div class="log-body" id="log-body"></div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ── 펌웨어 모달 ── -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">Arduino 펌웨어 코드</div>
+      <button class="modal-close" onclick="hideFW()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('rev1')">Rev1 코드</div>
+        <div class="tab" onclick="switchTab('rev2')">Rev2 코드</div>
+        <div class="tab" onclick="switchTab('proto')">통신 프로토콜</div>
+        <div class="tab" onclick="switchTab('wire')">배선/라이브러리</div>
+      </div>
+
+      <!-- Rev1 -->
+      <div class="tab-content active" id="tab-rev1">
+        <div class="fw-toolbar">
+          <div class="fw-badges">
+            <span class="badge rev1">Rev1 (LSM9DS1 + HTS221)</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="copyFW('rev1')">복사</button>
+            <button class="btn primary" style="font-size:11px;padding:4px 10px;" onclick="openInIDE('rev1')">IDE에서 열기</button>
+          </div>
+        </div>
+        <div class="code-block" id="fw-rev1"></div>
+        <div class="ide-info" id="ide-info-rev1"></div>
+      </div>
+
+      <!-- Rev2 -->
+      <div class="tab-content" id="tab-rev2">
+        <div class="fw-toolbar">
+          <div class="fw-badges">
+            <span class="badge rev2">Rev2 (BMI270+BMM150 + HS300x)</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="copyFW('rev2')">복사</button>
+            <button class="btn primary" style="font-size:11px;padding:4px 10px;" onclick="openInIDE('rev2')">IDE에서 열기</button>
+          </div>
+        </div>
+        <div class="code-block" id="fw-rev2"></div>
+        <div class="ide-info" id="ide-info-rev2"></div>
+      </div>
+
+      <div class="tab-content" id="tab-proto"><div class="code-block" id="fw-proto"></div></div>
+      <div class="tab-content" id="tab-wire"><div class="code-block" id="fw-wire"></div></div>
+    </div>
+    <div class="modal-foot">
+      <span class="xs" style="flex:1;color:var(--text3);">버전 확인: 보드 뒷면 또는 구매 시 제품명 확인</span>
+      <button class="btn" onclick="hideFW()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// SENSORS
+// ═══════════════════════════════════════════════
+const SENSORS = [
+  {id:'imu_acc', name:'가속도계', sub:'Accel XYZ',   axes:['Ax','Ay','Az'],     unit:'m/s²', color:'#3d7eff', lib:'IMU'},
+  {id:'imu_gyr', name:'자이로',   sub:'Gyro XYZ',    axes:['Gx','Gy','Gz'],     unit:'°/s',  color:'#a78bfa', lib:'IMU'},
+  {id:'imu_mag', name:'지자기',   sub:'Mag XYZ',     axes:['Mx','My','Mz'],     unit:'µT',   color:'#2dd4bf', lib:'IMU'},
+  {id:'temp_hum',name:'온습도',   sub:'Temp / Hum',  axes:['Temp','Hum'],       unit:'°C/%', color:'#f5a623', lib:'온습도'},
+  {id:'pressure',name:'기압',     sub:'Pressure',    axes:['hPa'],              unit:'hPa',  color:'#f472b6', lib:'LPS22HB'},
+  {id:'light',   name:'조도/근접',sub:'Prox/R/G/B',  axes:['Prox','R','G','B'], unit:'',     color:'#22d3a0', lib:'APDS9960'},
+  {id:'mic',     name:'마이크',   sub:'Sound Level', axes:['dB'],               unit:'dB',   color:'#ff4f6a', lib:'PDM'},
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const S = {
+  port:null, writer:null, connected:false,
+  recording:false, chartLive:false, demoMode:false, demoTimer:null,
+  active:new Set(),
+  hz:1, bufSize:10, longTermMin:0,
+  ltTimer:null, ltSegStart:null,
+  charts:{}, chartData:{},
+  recorded:[], recStart:null, recTimer:null,
+  recActualStart:null,
+  trigStart:false, trigStartSec:5,
+  trigEnd:false, trigEndSec:60,
+  trigStartTimer:null, trigEndTimer:null,
+  theme:'dark',
+  // BLE
+  connMode:'usb',        // 'usb' | 'ble'
+  bleDevice:null,        // BLEDevice
+  bleServer:null,
+  bleService:null,
+  bleChars:{},           // {sensorId: characteristic}
+  bleConnected:false,
+  blePIN:'',
+};
+
+// ═══════════════════════════════════════════════
+// 테마
+// ═══════════════════════════════════════════════
+function toggleTheme(){
+  S.theme = S.theme==='dark'?'light':'dark';
+  document.body.classList.toggle('light', S.theme==='light');
+  document.getElementById('theme-btn').textContent = S.theme==='dark'?'🌙':'☀️';
+  // Chart 색상 업데이트
+  Chart.defaults.color = S.theme==='dark'?'#8892a4':'#555f72';
+  Chart.defaults.borderColor = S.theme==='dark'?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.07)';
+  Object.values(S.charts).forEach(c=>c.update());
+}
+
+// ═══════════════════════════════════════════════
+// 센서 리스트
+// ═══════════════════════════════════════════════
+function buildSensorList(){
+  const el=document.getElementById('sensor-list'); el.innerHTML='';
+  SENSORS.forEach(s=>{
+    const d=document.createElement('div');
+    d.className='sensor-item'+(S.active.has(s.id)?' active':'');
+    d.id='si-'+s.id; d.onclick=()=>toggleSensor(s.id);
+    d.innerHTML=`<div class="s-left">
+      <div class="s-dot" style="background:${s.color}"></div>
+      <div><div class="s-name">${s.name}</div>
+      <div class="s-axes">${s.axes.join(' · ')} &nbsp;·&nbsp; ${s.lib}</div></div>
+    </div><div class="toggle"></div>`;
+    el.appendChild(d);
+  });
+}
+function toggleSensor(id){
+  S.active.has(id)?S.active.delete(id):S.active.add(id);
+  document.getElementById('si-'+id).classList.toggle('active');
+  rebuildCharts(); sendSensorCfg();
+}
+function toggleAll(on){
+  SENSORS.forEach(s=>{
+    on?S.active.add(s.id):S.active.delete(s.id);
+    document.getElementById('si-'+s.id).classList.toggle('active',on);
+  });
+  rebuildCharts(); sendSensorCfg();
+}
+
+// ═══════════════════════════════════════════════
+// 샘플레이트
+// ═══════════════════════════════════════════════
+function setSR(el, type){
+  if(type==='rt'){
+    document.querySelectorAll('#sr-rt .srate-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('#sr-lt .srate-btn').forEach(b=>b.classList.remove('lt-active'));
+    el.classList.add('active');
+    S.hz = parseFloat(el.dataset.hz);
+    S.longTermMin = 0;
+    S.bufSize = Math.max(20, Math.round(S.hz*10));
+    document.getElementById('buf-lbl').textContent=`버퍼: 10s × ${S.hz}Hz = ${S.bufSize}pt`;
+  } else {
+    // 롱텀: 실시간 선택 유지하되 롱텀 간격만 선택
+    document.querySelectorAll('#sr-lt .srate-btn').forEach(b=>b.classList.remove('lt-active'));
+    el.classList.add('lt-active');
+    S.longTermMin = parseInt(el.dataset.min);
+    document.getElementById('buf-lbl').textContent=
+      `롱텀 간격: ${S.longTermMin}분마다 파일 저장`;
+  }
+  trimAllBufs();
+  if(S.connected||S.demoMode) sendCmd('RATE:'+S.hz);
+}
+function trimAllBufs(){
+  Object.keys(S.chartData).forEach(id=>{
+    const cd=S.chartData[id];
+    while(cd.labels.length>S.bufSize){cd.labels.shift();cd.datasets.forEach(d=>d.data.shift());}
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 트리거
+// ═══════════════════════════════════════════════
+function updateTrig(){
+  const sc=document.getElementById('ts-chk').checked;
+  const ec=document.getElementById('te-chk').checked;
+  document.getElementById('ts-val').disabled=!sc;
+  document.getElementById('te-val').disabled=!ec;
+  S.trigStart=sc; S.trigEnd=ec;
+  refreshTrigInfo();
+}
+function refreshTrigInfo(){
+  const sv=document.getElementById('ts-val').value;
+  const ev=document.getElementById('te-val').value;
+  let txt='조건 없음 — 수동 제어';
+  if(S.trigStart&&S.trigEnd) txt=`${sv}초 후 시작 → ${ev}초 후 자동 종료`;
+  else if(S.trigStart) txt=`${sv}초 후 수집 시작`;
+  else if(S.trigEnd)   txt=`시작 후 ${ev}초 뒤 자동 종료`;
+  document.getElementById('trig-info').textContent=txt;
+}
+document.getElementById('ts-val').addEventListener('input',refreshTrigInfo);
+document.getElementById('te-val').addEventListener('input',refreshTrigInfo);
+
+// ═══════════════════════════════════════════════
+// 차트 재구성
+// ═══════════════════════════════════════════════
+Chart.defaults.color='#8892a4';
+Chart.defaults.borderColor='rgba(255,255,255,0.05)';
+
+function rebuildCharts(){
+  const active=SENSORS.filter(s=>S.active.has(s.id));
+  const grid=document.getElementById('chart-grid');
+  const empty=document.getElementById('chart-empty');
+
+  // 비활성 차트 제거
+  Object.keys(S.charts).forEach(id=>{
+    if(!S.active.has(id)){
+      S.charts[id].destroy(); delete S.charts[id]; delete S.chartData[id];
+      const c=document.getElementById('cc-'+id); if(c) c.remove();
+    }
+  });
+
+  if(active.length===0){empty.style.display='flex';grid.style.display='none';return;}
+  empty.style.display='none';
+  grid.style.display='grid';
+  grid.className='chart-grid'+(active.length===1?' single':'');
+
+  const hMap={1:340,2:240,3:210,4:190,5:170,6:155,7:145};
+  const h=hMap[Math.min(active.length,7)]||145;
+
+  active.forEach(s=>{
+    if(S.charts[s.id]) return;
+    S.chartData[s.id]={
+      labels:[],
+      datasets:s.axes.map((ax,i)=>({
+        label:ax, data:[],
+        borderColor:colorVar(s.color,i,s.axes.length),
+        backgroundColor:'transparent',
+        borderWidth:1.5, pointRadius:0, tension:0.3,
+      }))
+    };
+    const card=document.createElement('div');
+    card.className='chart-card'; card.id='cc-'+s.id;
+    card.innerHTML=`
+      <div class="chart-hdr">
+        <div class="chart-title-row">
+          <div class="chart-bar" style="background:${s.color}"></div>
+          <div>
+            <div class="chart-title">${s.name} <span style="color:var(--text3);font-weight:400;font-size:11px;">${s.sub}</span></div>
+            <div class="chart-sub">${s.lib} · ${s.unit||'—'}</div>
+          </div>
+        </div>
+        <div class="live-vals" id="lv-${s.id}">
+          ${s.axes.map((ax,i)=>`<div class="lv" style="color:${colorVar(s.color,i,s.axes.length)}">
+            <div class="lv-num" id="lvn-${s.id}-${i}">—</div>
+            <div class="lv-lbl">${ax}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="chart-body"><canvas id="cv-${s.id}" height="${h}"></canvas></div>`;
+    grid.appendChild(card);
+    const ctx=document.getElementById('cv-'+s.id).getContext('2d');
+
+    // temp_hum은 Temp(°C)와 Hum(%)의 스케일이 달라 독립 y축 적용
+    const isTempHum = s.id === 'temp_hum';
+    const chartDatasets = isTempHum
+      ? s.axes.map((ax,i)=>({
+          label:ax, data:[],
+          borderColor:colorVar(s.color,i,s.axes.length),
+          backgroundColor:'transparent',
+          borderWidth:1.5, pointRadius:0, tension:0.3,
+          yAxisID: i===0 ? 'yTemp' : 'yHum',
+        }))
+      : S.chartData[s.id].datasets;
+
+    if(isTempHum) S.chartData[s.id].datasets = chartDatasets;
+
+    const scalesOpt = isTempHum ? {
+      x:{grid:{color:S.theme==='dark'?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)'},ticks:{maxTicksLimit:7,font:{size:9}}},
+      yTemp:{
+        type:'linear', position:'left',
+        grid:{color:S.theme==='dark'?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)'},
+        ticks:{font:{size:9},maxTicksLimit:5,color:'#f5a623'},
+        title:{display:true,text:'°C',font:{size:9},color:'#f5a623'},
+      },
+      yHum:{
+        type:'linear', position:'right',
+        grid:{drawOnChartArea:false},
+        ticks:{font:{size:9},maxTicksLimit:5,color:'#aaa'},
+        title:{display:true,text:'%',font:{size:9},color:'#aaa'},
+        min:0, max:100,
+      },
+    } : {
+      x:{grid:{color:S.theme==='dark'?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)'},ticks:{maxTicksLimit:7,font:{size:9}}},
+      y:{
+        grid:{color:S.theme==='dark'?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)'},
+        ticks:{font:{size:9},maxTicksLimit:5},
+      },
+    };
+
+    S.charts[s.id]=new Chart(ctx,{
+      type:'line', data:S.chartData[s.id],
+      options:{
+        animation:false, responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:s.axes.length>1,position:'top',labels:{boxWidth:8,boxHeight:8,padding:8,font:{size:10}}},
+          tooltip:{mode:'index',intersect:false,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y?.toFixed(isTempHum?1:3)??'—'}`}}
+        },
+        scales: scalesOpt,
+        interaction:{mode:'index',intersect:false}
+      }
+    });
+  });
+}
+
+function colorVar(base,idx,total){
+  if(total===1) return base;
+  const shifts=[0,50,-40,30,-60];
+  return lighten(base, shifts[idx%shifts.length]);
+}
+function lighten(hex,amt){
+  let[r,g,b]=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+  return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v+amt)).toString(16).padStart(2,'0')).join('');
+}
+
+// ═══════════════════════════════════════════════
+// 데이터 푸시
+// ═══════════════════════════════════════════════
+function pushData(sid, values){
+  const cd=S.chartData[sid]; if(!cd) return;
+
+  // 차트 업데이트 (chartLive 상태와 무관하게 연결 중엔 표시)
+  if(S.chartLive){
+    const lbl=new Date().toLocaleTimeString('ko-KR',{hour12:false});
+    cd.labels.push(lbl);
+    values.forEach((v,i)=>{if(cd.datasets[i]) cd.datasets[i].data.push(v);});
+    while(cd.labels.length>S.bufSize){cd.labels.shift();cd.datasets.forEach(d=>d.data.shift());}
+    if(S.charts[sid]) S.charts[sid].update('none');
+    values.forEach((v,i)=>{
+      const el=document.getElementById(`lvn-${sid}-${i}`);
+      if(el) el.textContent=typeof v==='number'?v.toFixed(2):v;
+    });
+  }
+
+  // 레코드 저장 (recording 상태일 때만)
+  if(S.recording){
+    const sensor=SENSORS.find(s=>s.id===sid);
+    const now=new Date();
+    const row={
+      timestamp: now.toISOString(),
+      elapsed_s: S.recActualStart ? +((now-S.recActualStart)/1000).toFixed(2) : 0,
+      sensor: sensor?.name??sid,
+    };
+    sensor?.axes.forEach((ax,i)=>row[ax]=values[i]??'');
+    S.recorded.push(row);
+    document.getElementById('rec-samples').textContent=S.recorded.length;
+    document.getElementById('rec-count').textContent=S.recorded.length;
+    updateExpRange();
+    setExportEnabled(true);
+
+    // 롱텀: 간격마다 자동 저장
+    if(S.longTermMin>0 && S.ltSegStart){
+      const elapsed=(Date.now()-S.ltSegStart)/1000/60;
+      if(elapsed>=S.longTermMin){
+        autoSaveLongterm();
+        S.ltSegStart=Date.now();
+      }
+    }
+  }
+}
+
+function updateExpRange(){
+  if(!S.recorded.length){document.getElementById('exp-range').textContent='—';return;}
+  const first=S.recorded[0].timestamp?.slice(11,19)??'';
+  const last=S.recorded[S.recorded.length-1].timestamp?.slice(11,19)??'';
+  document.getElementById('exp-range').textContent=`${first} ~ ${last}`;
+}
+
+function autoSaveLongterm(){
+  const seg=S.recorded.filter(r=>r.elapsed_s!==undefined);
+  if(!seg.length) return;
+  const ts=new Date().toISOString().slice(0,19).replace(/[T:]/g,'-');
+  exportData(seg, `ble_longterm_${ts}`);
+  log(`롱텀 자동 저장 (${S.longTermMin}분 구간 · ${seg.length}행)`,'sys');
+}
+
+// ═══════════════════════════════════════════════
+// 수집 토글
+// ═══════════════════════════════════════════════
+function toggleRecord(){
+  S.recording ? stopRecording() : startRecording();
+}
+
+function startRecording(){
+  if(S.active.size===0){log('활성화된 센서가 없습니다.','err');return;}
+  const delay = S.trigStart ? parseInt(document.getElementById('ts-val').value)*1000 : 0;
+  const autoStop = S.trigEnd ? parseInt(document.getElementById('te-val').value)*1000 : 0;
+
+  setRecBtn('waiting','대기 중...');
+
+  if(delay>0){
+    log(`⏱ ${delay/1000}초 후 수집 시작...`,'sys');
+    S.trigStartTimer=setTimeout(()=>_doStart(autoStop), delay);
+  } else {
+    _doStart(autoStop);
+  }
+}
+
+function _doStart(autoStopMs){
+  S.recording=true; S.chartLive=true;
+  S.recStart=Date.now(); S.recActualStart=new Date();
+  S.ltSegStart=Date.now();
+  setRecBtn('running','수집 종료');
+  document.getElementById('conn-dot').classList.add('rec');
+  document.getElementById('conn-label').textContent='수집 중';
+  S.recTimer=setInterval(updateRecTime,500);
+  if(autoStopMs>0){
+    S.trigEndTimer=setTimeout(()=>{log(`⏱ 자동 종료 (${autoStopMs/1000}초)`,'sys');stopRecording();},autoStopMs);
+  }
+  sendCmd('START');
+  log('● 수집 시작 — '+new Date().toLocaleTimeString('ko-KR'),'sys');
+}
+
+function stopRecording(){
+  clearTimeout(S.trigStartTimer); clearTimeout(S.trigEndTimer);
+  S.recording=false;
+  // chartLive는 유지 — 연결이 살아있으면 차트는 계속 표시
+  clearInterval(S.recTimer);
+  setRecBtn('idle','수집 시작');
+  document.getElementById('conn-dot').classList.remove('rec');
+  document.getElementById('conn-label').textContent=
+    S.connected?'연결됨':(S.demoMode?'데모':'연결 안됨');
+  sendCmd('STOP');
+  log(`■ 수집 종료 — 총 ${S.recorded.length}개 레코드`,'sys');
+}
+
+function setRecBtn(st,txt){
+  const btn=document.getElementById('rec-btn');
+  btn.className='rec-btn '+st;
+  document.getElementById('rec-txt').textContent=txt;
+}
+
+function updateRecTime(){
+  const s=Math.floor((Date.now()-S.recStart)/1000);
+  document.getElementById('rec-time').textContent=
+    Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+
+function setExportEnabled(on){
+  ['exp-csv','exp-xlsx','exp-clear'].forEach(id=>document.getElementById(id).disabled=!on);
+}
+
+function clearData(){
+  S.recorded=[];
+  document.getElementById('rec-samples').textContent=0;
+  document.getElementById('rec-time').textContent='0:00';
+  document.getElementById('rec-count').textContent=0;
+  document.getElementById('exp-range').textContent='—';
+  setExportEnabled(false);
+  log('데이터 초기화','sys');
+}
+
+// ═══════════════════════════════════════════════
+// 내보내기 (수집 조건 메타데이터 포함)
+// ═══════════════════════════════════════════════
+function buildMeta(){
+  return {
+    export_time: new Date().toISOString(),
+    sample_hz: S.hz,
+    sensors: [...S.active].join(', '),
+    trigger_start_delay_s: S.trigStart?document.getElementById('ts-val').value:'none',
+    trigger_auto_stop_s: S.trigEnd?document.getElementById('te-val').value:'none',
+    longterm_interval_min: S.longTermMin||'none',
+    total_records: S.recorded.length,
+    rec_start: S.recActualStart?.toISOString()??'',
+    rec_end: S.recorded.length?S.recorded[S.recorded.length-1].timestamp:'',
+  };
+}
+
+function exportCSV(){
+  if(!S.recorded.length){log('수집된 데이터가 없습니다.','err');return;}
+  exportData(S.recorded, 'ble_data_'+ts());
+}
+function exportXLSX(){
+  if(!S.recorded.length){log('수집된 데이터가 없습니다.','err');return;}
+  exportData(S.recorded, 'ble_data_'+ts(), true);
+}
+function exportData(rows, name, xlsx=false){
+  const meta=buildMeta();
+  if(!xlsx){
+    // CSV: 메타 주석 → 데이터
+    const metaLines=Object.entries(meta).map(([k,v])=>`# ${k}: ${v}`).join('\n');
+    const keys=Object.keys(rows[0]);
+    const csv=[metaLines,'', keys.join(','), ...rows.map(r=>keys.map(k=>r[k]??'').join(','))].join('\n');
+    dl(new Blob(['\uFEFF'+csv],{type:'text/csv'}), name+'.csv');
+    log(`CSV 저장 완료 (${rows.length}행)`,'sys');
+  } else {
+    const wb=XLSX.utils.book_new();
+    // 메타 시트
+    const metaRows=Object.entries(meta).map(([k,v])=>({항목:k,값:String(v)}));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(metaRows),'수집 정보');
+    // 센서별 시트
+    const sensors=[...new Set(rows.map(r=>r.sensor))];
+    sensors.forEach(sname=>{
+      const sRows=rows.filter(r=>r.sensor===sname);
+      const ws=XLSX.utils.json_to_sheet(sRows);
+      ws['!cols']=Object.keys(sRows[0]).map(k=>({wch:Math.max(k.length+2,12)}));
+      XLSX.utils.book_append_sheet(wb,ws,sname.slice(0,31));
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows),'전체');
+    XLSX.writeFile(wb, name+'.xlsx');
+    log(`XLSX 저장 완료 (${rows.length}행, ${sensors.length+2}시트)`,'sys');
+  }
+}
+function ts(){return new Date().toISOString().slice(0,19).replace(/[T:]/g,'-');}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
+
+// ═══════════════════════════════════════════════
+// 시리얼
+// ═══════════════════════════════════════════════
+async function connectSerial(){
+  if(!('serial' in navigator)){log('Web Serial 미지원 — Chrome / Edge 를 사용하세요','err');return;}
+  try{
+    const baud=parseInt(document.getElementById('baud-sel').value);
+    S.port=await navigator.serial.requestPort();
+    await S.port.open({baudRate:baud});
+    S.writer=S.port.writable.getWriter();
+    S.connected=true; updateConnUI(true);
+    log(`포트 연결됨 (${baud} baud)`,'sys');
+    startReadLoop(); sendSensorCfg();
+  }catch(e){if(e.name!=='NotFoundError')log('연결 실패: '+e.message,'err');}
+}
+async function disconnectSerial(){
+  S.connected=false; if(S.recording)stopRecording();
+  try{S.writer?.releaseLock();}catch(e){}
+  try{await S.port?.close();}catch(e){}
+  S.port=null; S.writer=null;
+  updateConnUI(false); log('포트 해제됨','sys');
+}
+function startReadLoop(){
+  const dec=new TextDecoderStream();
+  S.port.readable.pipeTo(dec.writable);
+  const reader=dec.readable.getReader();
+  let buf='';
+  (async()=>{
+    while(S.connected){
+      try{
+        const{value,done}=await reader.read(); if(done)break;
+        buf+=value; let nl;
+        while((nl=buf.indexOf('\n'))>=0){
+          const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1);
+          if(line)processLine(line);
+        }
+      }catch(e){if(S.connected)log('읽기 오류: '+e.message,'err');break;}
+    }
+  })();
+}
+function processLine(line){
+  if(line.startsWith('#')){log(line.slice(1).trim(),'sys');return;}
+  log(line,'rx');
+  const parts=line.split(','); if(parts.length<2)return;
+  const id=parts[0].toLowerCase();
+  if(!S.active.has(id))return;
+  const values=parts.slice(1,parts.length-1).map(Number);
+  pushData(id,values);
+}
+async function sendCmd(cmd){
+  const inp=document.getElementById('tx-inp');
+  const c=typeof cmd==='string'?cmd:inp.value.trim(); if(!c)return;
+  if(typeof cmd!=='string')inp.value='';
+  log('> '+c,'tx');
+  if(S.connMode==='ble'){
+    sendBLECmd(c);
+  } else {
+    if(S.writer){try{await S.writer.write(new TextEncoder().encode(c+'\n'));}catch(e){log('전송실패','err');}}
+  }
+}
+function sendSensorCfg(){
+  const list=SENSORS.filter(s=>S.active.has(s.id)).map(s=>s.id).join(',');
+  if(S.connected)sendCmd('SENSORS:'+(list||'none'));
+}
+function updateConnUI(on){
+  document.getElementById('conn-dot').classList.toggle('on',on);
+  document.getElementById('conn-dot').classList.remove('rec');
+  document.getElementById('conn-label').textContent=on?'연결됨':'연결 안됨';
+  if(S.connMode==='usb'){
+    document.getElementById('connect-btn').disabled=on;
+    document.getElementById('disconnect-btn').disabled=!on;
+  }
+  document.getElementById('rec-btn').disabled=!on&&!S.demoMode;
+  if(on) S.chartLive=true;
+  if(!on && !S.demoMode) S.chartLive=false;
+}
+
+// ═══════════════════════════════════════════════
+// 연결 모드 전환 (USB ↔ BLE)
+// ═══════════════════════════════════════════════
+function setConnMode(mode){
+  S.connMode=mode;
+  // 기존 연결 해제
+  if(S.connected) disconnectSerial();
+  if(S.bleConnected) disconnectBLE();
+
+  document.getElementById('panel-usb').style.display = mode==='usb'?'':'none';
+  document.getElementById('panel-ble').style.display = mode==='ble'?'':'none';
+
+  const usbBtn=document.getElementById('mode-usb');
+  const bleBtn=document.getElementById('mode-ble');
+  usbBtn.classList.toggle('active', mode==='usb');
+  usbBtn.classList.remove('ble-mode');
+  bleBtn.classList.toggle('active', mode==='ble');
+  bleBtn.classList.toggle('ble-mode', mode==='ble');
+
+  document.getElementById('conn-label').textContent='연결 안됨';
+  log(`연결 모드: ${mode==='usb'?'USB Serial':'Bluetooth BLE'}`,'sys');
+}
+
+// ═══════════════════════════════════════════════
+// BLE 연결
+// ═══════════════════════════════════════════════
+// BLE GATT 서비스 UUID (펌웨어와 동일)
+const BLE_SERVICE  = '19b10000-e8f2-537e-4f6c-d104768a1214';
+const BLE_CHAR_MAP = {
+  imu_acc : '19b10001-e8f2-537e-4f6c-d104768a1214',
+  imu_gyr : '19b10002-e8f2-537e-4f6c-d104768a1214',
+  imu_mag : '19b10003-e8f2-537e-4f6c-d104768a1214',
+  temp_hum: '19b10004-e8f2-537e-4f6c-d104768a1214',
+  pressure: '19b10005-e8f2-537e-4f6c-d104768a1214',
+  light   : '19b10006-e8f2-537e-4f6c-d104768a1214',
+  mic     : '19b10007-e8f2-537e-4f6c-d104768a1214',
+  cmd     : '19b10010-e8f2-537e-4f6c-d104768a1214',
+};
+
+async function connectBLE(){
+  if(!('bluetooth' in navigator)){
+    log('Web Bluetooth 미지원 — Chrome / Edge 필요','err'); return;
+  }
+  const id=document.getElementById('ble-pin').value.trim().toUpperCase();
+  if(id.length!==4){log('DEVICE ID 4자리를 입력하세요. (예: A3F7)','err');return;}
+
+  const deviceName='BLE-'+id;
+  S.blePIN=id;
+  log(`BLE 탐색 중: ${deviceName} ...`,'sys');
+  log('팝업에서 "'+deviceName+'" 을 선택하세요.','sys');
+
+  try{
+    // acceptAllDevices: 주변 모든 BLE 장치를 목록에 표시
+    // → 사용자가 "BLE-XXXX" 직접 선택
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [BLE_SERVICE]
+    });
+
+    // 선택된 장치명 검증
+    if(device.name && device.name !== deviceName){
+      const ok = confirm(
+        `선택된 장치: "${device.name}"\n` +
+        `입력한 ID:   "${deviceName}"\n\n` +
+        `장치가 다릅니다. 계속 연결하시겠습니까?`
+      );
+      if(!ok){ log('연결 취소됨','sys'); return; }
+    }
+
+    S.bleDevice=device;
+    device.addEventListener('gattserverdisconnected', onBLEDisconnected);
+    log('BLE 장치 선택됨: '+(device.name||'(이름 없음)'),'sys');
+
+    const server  = await device.gatt.connect();
+    S.bleServer   = server;
+    const service = await server.getPrimaryService(BLE_SERVICE);
+    S.bleService  = service;
+
+    S.bleChars={};
+    for(const [sid, uuid] of Object.entries(BLE_CHAR_MAP)){
+      try{
+        const ch = await service.getCharacteristic(uuid);
+        S.bleChars[sid] = ch;
+        if(sid !== 'cmd'){
+          await ch.startNotifications();
+          ch.addEventListener('characteristicvaluechanged', (e)=>{
+            const line = new TextDecoder().decode(e.target.value);
+            onBLELine(line);
+          });
+        }
+      }catch(e){}
+    }
+
+    S.bleConnected=true;
+    S.connected=true;
+    updateConnUI(true);
+    document.getElementById('ble-connect-btn').disabled=true;
+    document.getElementById('ble-disconnect-btn').disabled=false;
+
+    const info=document.getElementById('ble-device-info');
+    info.style.display='';
+    info.innerHTML=`연결됨: <b>${device.name||deviceName}</b>`;
+
+    document.getElementById('conn-dot').classList.add('on');
+    document.getElementById('conn-label').textContent='BLE: '+(device.name||deviceName);
+    log(`BLE 연결 완료: ${device.name||deviceName}`,'sys');
+    sendSensorCfg();
+
+  }catch(e){
+    if(e.name==='NotFoundError')
+      log('장치 선택이 취소됐습니다.','err');
+    else if(e.name==='SecurityError')
+      log('보안 오류: HTTPS 환경이 필요합니다.','err');
+    else
+      log('BLE 연결 실패: '+e.message,'err');
+  }
+}
+
+function onBLELine(line){
+  if(line.startsWith('#')){log(line.slice(1).trim(),'sys');return;}
+  // BLE는 20자 제한으로 잘림 → 센서ID만 파싱
+  const parts=line.split(','); if(parts.length<2) return;
+  const id=parts[0].toLowerCase();
+  if(!S.active.has(id)) return;
+  const values=parts.slice(1,parts.length-1).map(Number);
+  pushData(id,values);
+}
+
+function onBLEDisconnected(){
+  S.bleConnected=false;
+  S.connected=false;
+  updateConnUI(false);
+  document.getElementById('ble-connect-btn').disabled=false;
+  document.getElementById('ble-disconnect-btn').disabled=true;
+  document.getElementById('ble-device-info').style.display='none';
+  log('BLE 연결 해제됨','sys');
+}
+
+async function disconnectBLE(){
+  if(S.bleDevice && S.bleDevice.gatt.connected){
+    await S.bleDevice.gatt.disconnect();
+  }
+  onBLEDisconnected();
+}
+
+// BLE Write 커맨드 전송
+async function sendBLECmd(cmd){
+  if(!S.bleConnected || !S.bleChars.cmd) return;
+  try{
+    const enc=new TextEncoder().encode(cmd);
+    await S.bleChars.cmd.writeValue(enc);
+    log('BLE> '+cmd,'tx');
+  }catch(e){log('BLE 전송 실패: '+e.message,'err');}
+}
+
+// ═══════════════════════════════════════════════
+// 데모 모드
+// ═══════════════════════════════════════════════
+function runDemo(){
+  if(S.demoMode){
+    clearInterval(S.demoTimer); S.demoMode=false;
+    if(S.recording)stopRecording();
+    S.chartLive=false;
+    document.getElementById('demo-btn').innerHTML=
+      '<svg viewBox="0 0 16 16" fill="currentColor"><polygon points="3,2 14,8 3,14"/></svg>데모 모드';
+    document.getElementById('rec-btn').disabled=!S.connected;
+    document.getElementById('conn-dot').classList.remove('on');
+    document.getElementById('conn-label').textContent='연결 안됨';
+    log('데모 종료','sys'); return;
+  }
+  S.demoMode=true;
+  ['imu_acc','imu_gyr','temp_hum','mic'].forEach(id=>{
+    S.active.add(id); document.getElementById('si-'+id).classList.add('active');
+  });
+  rebuildCharts();
+  S.chartLive=true;
+  document.getElementById('conn-dot').classList.add('on');
+  document.getElementById('conn-label').textContent='데모 모드';
+  document.getElementById('rec-btn').disabled=false;
+  document.getElementById('demo-btn').textContent='■ 데모 종료';
+  log('[DEMO] 시뮬레이션 시작','sys');
+
+  let t=0;
+  const iv=Math.max(50,Math.round(1000/S.hz));
+  S.demoTimer=setInterval(()=>{
+    t+=0.05;
+    if(!S.chartLive)return;
+    pushData('imu_acc',[+(Math.sin(t)*2+(Math.random()-.5)*.3).toFixed(3),+(Math.cos(t*.7)*1.5+(Math.random()-.5)*.3).toFixed(3),+(9.81+Math.sin(t*.3)*.5+(Math.random()-.5)*.2).toFixed(3)]);
+    pushData('imu_gyr',[+(Math.sin(t*1.2)*15+(Math.random()-.5)*2).toFixed(2),+(Math.cos(t*.8)*12+(Math.random()-.5)*2).toFixed(2),+(Math.sin(t*.5)*8+(Math.random()-.5)).toFixed(2)]);
+    pushData('temp_hum',[+(22+Math.sin(t*.1)*3+(Math.random()-.5)*.5).toFixed(1),+(55+Math.sin(t*.08)*10+(Math.random()-.5)*2).toFixed(1)]);
+    pushData('mic',[+(40+Math.abs(Math.sin(t*3))*20+(Math.random()-.5)*5).toFixed(1)]);
+  },iv);
+}
+
+// ═══════════════════════════════════════════════
+// 로그
+// ═══════════════════════════════════════════════
+function log(msg,type='sys'){
+  const el=document.getElementById('log-body');
+  const now=new Date().toLocaleTimeString('ko-KR',{hour12:false});
+  const d=document.createElement('div'); d.className='ll '+type;
+  d.innerHTML=`<span class="lt-span">${now}</span>${esc(msg)}`;
+  el.appendChild(d);
+  while(el.children.length>300)el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+function clearLog(){document.getElementById('log-body').innerHTML='';}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ═══════════════════════════════════════════════
+// 펌웨어 코드
+// ═══════════════════════════════════════════════
+const FW_REV1 = `// ════════════════════════════════════════════════════
+// Arduino Nano 33 BLE Sense (Rev1) — 대시보드 펌웨어 v2.1
+// USB Serial + BLE 동시 지원 / nRF52840 DEVICEID 기반 식별
+// ════════════════════════════════════════════════════
+// [고유 ID 방식]
+//   nRF52840 칩 내장 FICR DEVICEID 레지스터 사용
+//   공장 출하 시 각인된 64bit 값 → 변경 불가, 전 세계 유일
+//   뒤 4자리(16진수)를 장치명으로 사용
+//   예) DEVICEID = ...A3F7 → 장치명: BLE-A3F7
+//
+// [라이브러리]
+//   ArduinoBLE            ← BLE
+//   Arduino_LSM9DS1       ← IMU
+//   Arduino_HTS221        ← 온습도
+//   Arduino_LPS22HB       ← 기압
+//   Arduino_APDS9960      ← 조도/근접
+//   PDM                   ← 마이크 (자동 포함)
+// ════════════════════════════════════════════════════
+#include <ArduinoBLE.h>
+#include <Arduino_LSM9DS1.h>
+#include <Arduino_HTS221.h>
+#include <Arduino_LPS22HB.h>
+#include <Arduino_APDS9960.h>
+#include <PDM.h>
+
+// ── 고유 디바이스 ID 추출 ─────────────────────────────
+// nRF52840 FICR 레지스터에서 64bit ID의 하위 16bit(4자리 hex) 추출
+String getDeviceID() {
+  uint32_t id = NRF_FICR->DEVICEID[0];  // 하위 32bit
+  // 하위 16bit → 4자리 16진수 문자열
+  String hex = String(id & 0xFFFF, HEX);
+  hex.toUpperCase();
+  // 4자리 미만이면 앞에 0 패딩
+  while (hex.length() < 4) hex = "0" + hex;
+  return hex;
+}
+
+// ── 전역 변수 ─────────────────────────────────────────
+String deviceID   = "";   // 예: "A3F7"
+String deviceName = "";   // 예: "BLE-A3F7"
+
+float         sampleRate     = 1.0;
+unsigned long sampleInterval = 1000;
+bool active[7] = {true,true,true,true,true,true,true};
+int  htsFailCount = 0;
+bool bleConnected = false;
+
+// ── BLE 서비스 / 특성 ─────────────────────────────────
+BLEService sensorService("19B10000-E8F2-537E-4F6C-D104768A1214");
+BLEStringCharacteristic chImuAcc ("19B10001-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chImuGyr ("19B10002-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chImuMag ("19B10003-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chTempHum("19B10004-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chPress  ("19B10005-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chLight  ("19B10006-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chMic    ("19B10007-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+// 디바이스 정보 Characteristic (Read 전용 — 대시보드가 ID 확인용)
+BLEStringCharacteristic chDeviceInfo("19B10008-E8F2-537E-4F6C-D104768A1214", BLERead, 20);
+// 커맨드 수신 (Write)
+BLEStringCharacteristic chCmd    ("19B10010-E8F2-537E-4F6C-D104768A1214", BLEWrite, 20);
+
+// ── PDM 마이크 ───────────────────────────────────────
+short micBuf[256];
+float micLevel = 0;
+
+void onPDMdata() {
+  int   bytes = PDM.available();
+  PDM.read(micBuf, bytes);
+  int   n = bytes / 2;
+  float sum = 0;
+  for (int i = 0; i < n; i++) sum += abs(micBuf[i]);
+  float rms = sum / n;
+  micLevel = (rms > 0) ? 20.0 * log10(rms / 32768.0) + 100.0 : 0;
+}
+
+// ── HTS221 초기화 (재시도) ───────────────────────────
+bool initHTS() {
+  for (int i = 0; i < 5; i++) {
+    if (HTS.begin()) {
+      delay(50);
+      if (HTS.readTemperature() != 0.0 || HTS.readHumidity() != 0.0) {
+        Serial.println("# HTS221 초기화 성공 (" + String(i+1) + "회)");
+        return true;
+      }
+      HTS.end();
+    }
+    Serial.println("# HTS221 재시도 " + String(i+1));
+    delay(200);
+  }
+  return false;
+}
+
+// ── 데이터 전송 (USB Serial + BLE 동시) ──────────────
+void sendData(String line, BLEStringCharacteristic& ch) {
+  Serial.println(line);
+  if (bleConnected)
+    ch.writeValue(line.substring(0, min((int)line.length(), 20)));
+}
+
+// ════════════════════════════════════════════════════
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+
+  // ── 고유 ID 추출 ──────────────────────────────────
+  deviceID   = getDeviceID();
+  deviceName = "BLE-" + deviceID;
+
+  Serial.println("# ═══════════════════════════════════");
+  Serial.println("# Arduino Nano 33 BLE Sense Rev1 v2.1");
+  Serial.println("# DEVICE ID : " + deviceID);
+  Serial.println("# BLE 장치명: " + deviceName);
+  Serial.println("# 대시보드 ID 입력란에 위 DEVICE ID를 입력하세요");
+  Serial.println("# ═══════════════════════════════════");
+
+  // ── BLE 초기화 ────────────────────────────────────
+  if (!BLE.begin()) {
+    Serial.println("# [ERROR] BLE 초기화 실패");
+  } else {
+    BLE.setLocalName(deviceName.c_str());
+    BLE.setAdvertisedService(sensorService);
+
+    sensorService.addCharacteristic(chImuAcc);
+    sensorService.addCharacteristic(chImuGyr);
+    sensorService.addCharacteristic(chImuMag);
+    sensorService.addCharacteristic(chTempHum);
+    sensorService.addCharacteristic(chPress);
+    sensorService.addCharacteristic(chLight);
+    sensorService.addCharacteristic(chMic);
+    sensorService.addCharacteristic(chDeviceInfo);
+    sensorService.addCharacteristic(chCmd);
+
+    // 디바이스 정보 Characteristic에 ID 기록
+    // → 대시보드가 BLE 연결 전 ID만으로 장치 특정 가능
+    chDeviceInfo.writeValue(deviceID);
+
+    BLE.addService(sensorService);
+    BLE.advertise();
+    Serial.println("# BLE 광고 시작: " + deviceName);
+  }
+
+  // ── 센서 초기화 ───────────────────────────────────
+  if (!IMU.begin())  Serial.println("# [WARN] IMU(LSM9DS1) 초기화 실패");
+  delay(500);
+  if (!initHTS())    Serial.println("# [ERROR] HTS221 초기화 실패");
+  if (!BARO.begin()) Serial.println("# [WARN] LPS22HB 초기화 실패");
+  if (!APDS.begin()) Serial.println("# [WARN] APDS9960 초기화 실패");
+
+  PDM.onReceive(onPDMdata);
+  if (!PDM.begin(1, 16000)) Serial.println("# [WARN] PDM 마이크 초기화 실패");
+
+  delay(300);
+  Serial.println("# 초기화 완료 — 명령 대기 중");
+}
+
+// ── 커맨드 파서 ──────────────────────────────────────
+String cmdBuf = "";
+
+void parseCmd(String cmd) {
+  cmd.trim();
+  if (cmd.startsWith("RATE:")) {
+    sampleRate = cmd.substring(5).toFloat();
+    if (sampleRate <= 0) sampleRate = 1;
+    sampleInterval = (unsigned long)(1000.0 / sampleRate);
+    Serial.println("# RATE=" + String(sampleRate) + "Hz");
+  }
+  else if (cmd.startsWith("SENSORS:")) {
+    String list = cmd.substring(8);
+    for (int i = 0; i < 7; i++) active[i] = false;
+    if (list.indexOf("imu_acc")  >= 0) active[0] = true;
+    if (list.indexOf("imu_gyr")  >= 0) active[1] = true;
+    if (list.indexOf("imu_mag")  >= 0) active[2] = true;
+    if (list.indexOf("temp_hum") >= 0) active[3] = true;
+    if (list.indexOf("pressure") >= 0) active[4] = true;
+    if (list.indexOf("light")    >= 0) active[5] = true;
+    if (list.indexOf("mic")      >= 0) active[6] = true;
+    Serial.println("# SENSORS=" + list);
+  }
+  else if (cmd == "START")  Serial.println("# 수집 시작");
+  else if (cmd == "STOP")   Serial.println("# 수집 종료");
+  else if (cmd == "PING")   Serial.println("# PONG");
+  // ID 조회 커맨드 — 시리얼로도 확인 가능
+  else if (cmd == "ID?")    Serial.println("# ID: " + deviceID + " / " + deviceName);
+}
+
+unsigned long lastSample = 0;
+
+void loop() {
+  // ── BLE 연결 관리 ────────────────────────────────
+  BLEDevice central = BLE.central();
+  if (central) {
+    if (!bleConnected) {
+      bleConnected = true;
+      Serial.println("# BLE 연결됨: " + central.address());
+    }
+    if (chCmd.written()) parseCmd(chCmd.value());
+  } else {
+    if (bleConnected) {
+      bleConnected = false;
+      Serial.println("# BLE 연결 해제됨");
+    }
+  }
+
+  // ── USB Serial 커맨드 ────────────────────────────
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\\n') { parseCmd(cmdBuf); cmdBuf = ""; }
+    else           { cmdBuf += c; }
+  }
+
+  // ── 샘플링 ───────────────────────────────────────
+  unsigned long now = millis();
+  if (now - lastSample < sampleInterval) return;
+  lastSample = now;
+
+  if (active[0] && IMU.accelerationAvailable()) {
+    float ax,ay,az; IMU.readAcceleration(ax,ay,az);
+    sendData("imu_acc,"+String(ax*9.81,3)+","+String(ay*9.81,3)+","+String(az*9.81,3)+","+String(now), chImuAcc);
+  }
+  if (active[1] && IMU.gyroscopeAvailable()) {
+    float gx,gy,gz; IMU.readGyroscope(gx,gy,gz);
+    sendData("imu_gyr,"+String(gx,2)+","+String(gy,2)+","+String(gz,2)+","+String(now), chImuGyr);
+  }
+  if (active[2] && IMU.magneticFieldAvailable()) {
+    float mx,my,mz; IMU.readMagneticField(mx,my,mz);
+    sendData("imu_mag,"+String(mx,2)+","+String(my,2)+","+String(mz,2)+","+String(now), chImuMag);
+  }
+  if (active[3]) {
+    float temp = HTS.readTemperature();
+    float hum  = HTS.readHumidity();
+    if (temp == 0.0 && hum == 0.0) {
+      htsFailCount++;
+      if (htsFailCount >= 5) { htsFailCount=0; HTS.end(); delay(300); initHTS(); }
+    } else {
+      htsFailCount = 0;
+      sendData("temp_hum,"+String(temp,1)+","+String(hum,1)+","+String(now), chTempHum);
+    }
+  }
+  if (active[4]) {
+    sendData("pressure,"+String(BARO.readPressure(),2)+","+String(now), chPress);
+  }
+  if (active[5]) {
+    int prox=0,r=0,g=0,b=0;
+    if (APDS.proximityAvailable()) prox=APDS.readProximity();
+    if (APDS.colorAvailable())     APDS.readColor(r,g,b);
+    sendData("light,"+String(prox)+","+String(r)+","+String(g)+","+String(b)+","+String(now), chLight);
+  }
+  if (active[6]) {
+    sendData("mic,"+String(micLevel,1)+","+String(now), chMic);
+  }
+}
+`
+
+const FW_REV2 = `// ════════════════════════════════════════════════════
+// Arduino Nano 33 BLE Sense (Rev2) — 대시보드 펌웨어 v2.1
+// USB Serial + BLE 동시 지원 / nRF52840 DEVICEID 기반 식별
+// ════════════════════════════════════════════════════
+// [Rev2 변경 센서]
+//   IMU    : BMI270+BMM150  (Arduino_BMI270_BMM150)
+//   온습도 : HS3003          (Arduino_HS300x, 객체명 HS300x)
+//
+// [라이브러리]
+//   ArduinoBLE            ← BLE
+//   Arduino_BMI270_BMM150 ← IMU
+//   Arduino_HS300x        ← 온습도
+//   Arduino_LPS22HB       ← 기압
+//   Arduino_APDS9960      ← 조도/근접
+//   PDM                   ← 마이크 (자동 포함)
+// ════════════════════════════════════════════════════
+#include <ArduinoBLE.h>
+#include <Arduino_BMI270_BMM150.h>
+#include <Arduino_HS300x.h>
+#include <Arduino_LPS22HB.h>
+#include <Arduino_APDS9960.h>
+#include <PDM.h>
+
+// ── 고유 디바이스 ID (nRF52840 FICR) ─────────────────
+String getDeviceID() {
+  uint32_t id = NRF_FICR->DEVICEID[0];
+  String hex = String(id & 0xFFFF, HEX);
+  hex.toUpperCase();
+  while (hex.length() < 4) hex = "0" + hex;
+  return hex;
+}
+
+String deviceID   = "";
+String deviceName = "";
+
+float         sampleRate     = 1.0;
+unsigned long sampleInterval = 1000;
+bool active[7] = {true,true,true,true,true,true,true};
+int  htsFailCount = 0;
+bool bleConnected = false;
+
+// ── BLE (Rev1과 동일 UUID — 호환 유지) ───────────────
+BLEService sensorService("19B10000-E8F2-537E-4F6C-D104768A1214");
+BLEStringCharacteristic chImuAcc ("19B10001-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chImuGyr ("19B10002-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chImuMag ("19B10003-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chTempHum("19B10004-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chPress  ("19B10005-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chLight  ("19B10006-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chMic    ("19B10007-E8F2-537E-4F6C-D104768A1214", BLENotify|BLERead, 20);
+BLEStringCharacteristic chDeviceInfo("19B10008-E8F2-537E-4F6C-D104768A1214", BLERead, 20);
+BLEStringCharacteristic chCmd    ("19B10010-E8F2-537E-4F6C-D104768A1214", BLEWrite, 20);
+
+short micBuf[256];
+float micLevel = 0;
+
+void onPDMdata() {
+  int   bytes = PDM.available();
+  PDM.read(micBuf, bytes);
+  int   n = bytes / 2;
+  float sum = 0;
+  for (int i = 0; i < n; i++) sum += abs(micBuf[i]);
+  float rms = sum / n;
+  micLevel = (rms > 0) ? 20.0 * log10(rms / 32768.0) + 100.0 : 0;
+}
+
+bool initHS300x() {
+  for (int i = 0; i < 5; i++) {
+    if (HS300x.begin()) {
+      delay(50);
+      if (HS300x.readTemperature() != 0.0 || HS300x.readHumidity() != 0.0) {
+        Serial.println("# HS300x 초기화 성공 (" + String(i+1) + "회)");
+        return true;
+      }
+      HS300x.end();
+    }
+    Serial.println("# HS300x 재시도 " + String(i+1));
+    delay(200);
+  }
+  return false;
+}
+
+void sendData(String line, BLEStringCharacteristic& ch) {
+  Serial.println(line);
+  if (bleConnected)
+    ch.writeValue(line.substring(0, min((int)line.length(), 20)));
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+
+  deviceID   = getDeviceID();
+  deviceName = "BLE-" + deviceID;
+
+  Serial.println("# ═══════════════════════════════════");
+  Serial.println("# Arduino Nano 33 BLE Sense Rev2 v2.1");
+  Serial.println("# DEVICE ID : " + deviceID);
+  Serial.println("# BLE 장치명: " + deviceName);
+  Serial.println("# 대시보드 ID 입력란에 위 DEVICE ID를 입력하세요");
+  Serial.println("# ═══════════════════════════════════");
+
+  if (!BLE.begin()) {
+    Serial.println("# [ERROR] BLE 초기화 실패");
+  } else {
+    BLE.setLocalName(deviceName.c_str());
+    BLE.setAdvertisedService(sensorService);
+    sensorService.addCharacteristic(chImuAcc);
+    sensorService.addCharacteristic(chImuGyr);
+    sensorService.addCharacteristic(chImuMag);
+    sensorService.addCharacteristic(chTempHum);
+    sensorService.addCharacteristic(chPress);
+    sensorService.addCharacteristic(chLight);
+    sensorService.addCharacteristic(chMic);
+    sensorService.addCharacteristic(chDeviceInfo);
+    sensorService.addCharacteristic(chCmd);
+    chDeviceInfo.writeValue(deviceID);
+    BLE.addService(sensorService);
+    BLE.advertise();
+    Serial.println("# BLE 광고 시작: " + deviceName);
+  }
+
+  if (!IMU.begin())    Serial.println("# [WARN] IMU(BMI270+BMM150) 초기화 실패");
+  delay(500);
+  if (!initHS300x())   Serial.println("# [ERROR] HS300x 초기화 실패");
+  if (!BARO.begin())   Serial.println("# [WARN] LPS22HB 초기화 실패");
+  if (!APDS.begin())   Serial.println("# [WARN] APDS9960 초기화 실패");
+
+  PDM.onReceive(onPDMdata);
+  if (!PDM.begin(1, 16000)) Serial.println("# [WARN] PDM 마이크 초기화 실패");
+
+  delay(300);
+  Serial.println("# 초기화 완료 — 명령 대기 중");
+}
+
+String cmdBuf = "";
+
+void parseCmd(String cmd) {
+  cmd.trim();
+  if (cmd.startsWith("RATE:")) {
+    sampleRate = cmd.substring(5).toFloat();
+    if (sampleRate <= 0) sampleRate = 1;
+    sampleInterval = (unsigned long)(1000.0 / sampleRate);
+    Serial.println("# RATE=" + String(sampleRate) + "Hz");
+  }
+  else if (cmd.startsWith("SENSORS:")) {
+    String list = cmd.substring(8);
+    for (int i = 0; i < 7; i++) active[i] = false;
+    if (list.indexOf("imu_acc")  >= 0) active[0] = true;
+    if (list.indexOf("imu_gyr")  >= 0) active[1] = true;
+    if (list.indexOf("imu_mag")  >= 0) active[2] = true;
+    if (list.indexOf("temp_hum") >= 0) active[3] = true;
+    if (list.indexOf("pressure") >= 0) active[4] = true;
+    if (list.indexOf("light")    >= 0) active[5] = true;
+    if (list.indexOf("mic")      >= 0) active[6] = true;
+    Serial.println("# SENSORS=" + list);
+  }
+  else if (cmd == "START") Serial.println("# 수집 시작");
+  else if (cmd == "STOP")  Serial.println("# 수집 종료");
+  else if (cmd == "PING")  Serial.println("# PONG");
+  else if (cmd == "ID?")   Serial.println("# ID: " + deviceID + " / " + deviceName);
+}
+
+unsigned long lastSample = 0;
+
+void loop() {
+  BLEDevice central = BLE.central();
+  if (central) {
+    if (!bleConnected) {
+      bleConnected = true;
+      Serial.println("# BLE 연결됨: " + central.address());
+    }
+    if (chCmd.written()) parseCmd(chCmd.value());
+  } else {
+    if (bleConnected) {
+      bleConnected = false;
+      Serial.println("# BLE 연결 해제됨");
+    }
+  }
+
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\\n') { parseCmd(cmdBuf); cmdBuf = ""; }
+    else           { cmdBuf += c; }
+  }
+
+  unsigned long now = millis();
+  if (now - lastSample < sampleInterval) return;
+  lastSample = now;
+
+  if (active[0] && IMU.accelerationAvailable()) {
+    float ax,ay,az; IMU.readAcceleration(ax,ay,az);
+    sendData("imu_acc,"+String(ax*9.81,3)+","+String(ay*9.81,3)+","+String(az*9.81,3)+","+String(now), chImuAcc);
+  }
+  if (active[1] && IMU.gyroscopeAvailable()) {
+    float gx,gy,gz; IMU.readGyroscope(gx,gy,gz);
+    sendData("imu_gyr,"+String(gx,2)+","+String(gy,2)+","+String(gz,2)+","+String(now), chImuGyr);
+  }
+  if (active[2] && IMU.magneticFieldAvailable()) {
+    float mx,my,mz; IMU.readMagneticField(mx,my,mz);
+    sendData("imu_mag,"+String(mx,2)+","+String(my,2)+","+String(mz,2)+","+String(now), chImuMag);
+  }
+  // Rev2: HS300x 객체
+  if (active[3]) {
+    float temp = HS300x.readTemperature();
+    float hum  = HS300x.readHumidity();
+    if (temp == 0.0 && hum == 0.0) {
+      htsFailCount++;
+      if (htsFailCount >= 5) { htsFailCount=0; HS300x.end(); delay(300); initHS300x(); }
+    } else {
+      htsFailCount = 0;
+      sendData("temp_hum,"+String(temp,1)+","+String(hum,1)+","+String(now), chTempHum);
+    }
+  }
+  if (active[4]) {
+    sendData("pressure,"+String(BARO.readPressure(),2)+","+String(now), chPress);
+  }
+  if (active[5]) {
+    int prox=0,r=0,g=0,b=0;
+    if (APDS.proximityAvailable()) prox=APDS.readProximity();
+    if (APDS.colorAvailable())     APDS.readColor(r,g,b);
+    sendData("light,"+String(prox)+","+String(r)+","+String(g)+","+String(b)+","+String(now), chLight);
+  }
+  if (active[6]) {
+    sendData("mic,"+String(micLevel,1)+","+String(now), chMic);
+  }
+}
+`
+
+const FW_PROTO = `// ── 통신 프로토콜 (v2.0) ─────────────────────────────
+//
+// ════════ USB Serial 모드 ════════
+//
+// [Arduino → Dashboard]  CSV, 개행(\\n) 구분
+//   형식: SENSOR_ID,v1,v2,...,timestamp_ms
+//   예시:
+//     imu_acc,0.123,-0.045,9.812,45231
+//     temp_hum,23.4,58.2,45291
+//     mic,-32.5,45351
+//   # 로 시작 = 시스템 메시지
+//
+// [Dashboard → Arduino]  텍스트 커맨드, 개행(\\n) 구분
+//   RATE:<Hz>          샘플레이트 변경   예) RATE:20
+//   SENSORS:<id,...>   활성 센서 목록   예) SENSORS:imu_acc,mic
+//   START / STOP       수집 시작/종료
+//   PING               연결 확인 → # PONG
+//   PIN?               현재 BLE PIN 재조회 → # PIN: XXXX
+//
+// ════════ BLE 모드 ════════
+//
+// [서비스 UUID]
+//   19B10000-E8F2-537E-4F6C-D104768A1214
+//
+// [Characteristic UUID — Notify/Read]
+//   imu_acc  → 19B10001-...  (20바이트 CSV 문자열)
+//   imu_gyr  → 19B10002-...
+//   imu_mag  → 19B10003-...
+//   temp_hum → 19B10004-...
+//   pressure → 19B10005-...
+//   light    → 19B10006-...
+//   mic      → 19B10007-...
+//
+// [Characteristic UUID — Write (커맨드 전송)]
+//   cmd      → 19B10010-...  (RATE/SENSORS/START/STOP/PING)
+//
+// [BLE 데이터 형식]
+//   USB와 동일한 CSV 문자열, 단 20바이트 제한으로 잘림
+//   예) "imu_acc,0.12,-0.04" (timestamp 생략될 수 있음)
+//
+// [PIN 방식]
+//   부팅 시 4자리 난수 생성 → 장치명 "BLE-XXXX"
+//   시리얼 모니터에서 PIN 확인 → 대시보드 PIN 입력 → 연결
+//
+// [센서 ID 목록]
+//   imu_acc   가속도계  Ax, Ay, Az  [m/s²]
+//   imu_gyr   자이로    Gx, Gy, Gz  [°/s]
+//   imu_mag   지자기    Mx, My, Mz  [µT]
+//   temp_hum  온습도    Temp, Hum   [°C, %]
+//   pressure  기압      hPa
+//   light     조도/근접 Prox, R, G, B
+//   mic       마이크    dB`;
+
+const FW_WIRE = `// ── 배선 & 라이브러리 설치 안내 (v2.0) ──────────────
+//
+// [내장 센서 — 외부 배선 불필요]
+//
+//   Rev1                       Rev2
+//   ─────────────────────────────────────────
+//   LSM9DS1  9축 IMU            BMI270+BMM150  9축 IMU
+//   HTS221   온습도             HS3003         온습도
+//   LPS22HB  기압               LPS22HB        기압 (동일)
+//   APDS9960 조도/근접/RGB      APDS9960       조도/근접/RGB (동일)
+//   MP34DT05 PDM 마이크         MP34DT06JTR    PDM 마이크 (동일)
+//   nRF52840 BLE 내장           nRF52840       BLE 내장 (동일)
+//
+// ════════════════════════════════════════════
+// [라이브러리 설치 — 툴 → 라이브러리 관리자]
+// ════════════════════════════════════════════
+//
+//   ★ 공통 (Rev1 / Rev2 모두 필요)
+//     ArduinoBLE          ← BLE 통신 (v2.0 신규 추가)
+//     Arduino_LPS22HB     ← 기압
+//     Arduino_APDS9960    ← 조도/근접
+//     (PDM — 보드 패키지 설치 시 자동 포함)
+//
+//   Rev1 전용:
+//     Arduino_LSM9DS1     ← IMU
+//     Arduino_HTS221      ← 온습도
+//
+//   Rev2 전용:
+//     Arduino_BMI270_BMM150  ← IMU (LSM9DS1 대체)
+//     Arduino_HS300x         ← 온습도 (HTS221 대체)
+//
+// [보드 매니저]
+//   툴 → 보드 → 보드 관리자 →
+//   "Arduino Mbed OS Nano Boards" 검색 후 설치
+//   보드 선택: Arduino Nano 33 BLE
+//
+// ════════════════════════════════════════════
+// [USB Serial 연결]
+// ════════════════════════════════════════════
+//   Nano 33 BLE ──USB── PC
+//   브라우저: Chrome / Edge (Web Serial API)
+//   Baud Rate: 115200
+//
+// ════════════════════════════════════════════
+// [BLE 연결 방법]
+// ════════════════════════════════════════════
+//   1. 펌웨어 업로드 후 USB 연결
+//   2. IDE 시리얼 모니터(115200) 열기
+//   3. "# PIN: XXXX" 메시지에서 4자리 PIN 확인
+//   4. 대시보드 연결 모드를 "Bluetooth" 로 전환
+//   5. PIN 입력 후 연결 버튼 클릭
+//   6. 브라우저 BLE 장치 목록에서 "BLE-XXXX" 선택
+//
+//   ※ BLE는 패킷 크기 20바이트 제한 →
+//     고속(50Hz↑) 멀티센서 시 USB 권장
+//   ※ BLE와 USB Serial 동시 사용 가능
+//      (보드는 양쪽 모두 데이터 전송)
+//
+// ════════════════════════════════════════════
+// [주의사항]
+// ════════════════════════════════════════════
+//   ⚠ GPIO 전압: 3.3V 전용 (5V 입력 시 보드 손상)
+//   ⚠ BLE 사용 시 배터리 소모 증가
+//   ⚠ Rev 확인: 보드 뒷면 실크 또는 구매 제품명`;
+
+// ── IDE 연동 ──────────────────────────────────────────
+function openInIDE(rev){
+  const code = rev==='rev1' ? FW_REV1 : FW_REV2;
+  // arduino:// 프로토콜 시도 (Arduino IDE 2.x)
+  try {
+    const blob = new Blob([code], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    // Arduino IDE 설치된 경우: arduino:// URI 로 스케치 전달 시도
+    const ideUrl = 'arduino://';
+    const testLink = document.createElement('a');
+    testLink.href = ideUrl;
+    // 실제로는 파일 다운로드 후 IDE에서 열도록 안내
+    _downloadIno(code, rev);
+    showIdeGuide(rev, true);
+  } catch(e) {
+    _downloadIno(code, rev);
+    showIdeGuide(rev, false);
+  }
+}
+function _downloadIno(code, rev){
+  const name = `nano33ble_dashboard_${rev}.ino`;
+  dl(new Blob([code],{type:'text/plain'}), name);
+  log(`.ino 파일 다운로드: ${name}`,'sys');
+}
+function showIdeGuide(rev, hasIde){
+  const el = document.getElementById('ide-info-'+rev);
+  el.innerHTML = hasIde
+    ? `✅ <b>.ino 파일이 다운로드</b>되었습니다.<br>
+       Arduino IDE에서 파일 → 열기로 불러오거나, 다운로드 파일을 더블클릭하세요.<br>
+       보드: <b>Arduino Nano 33 BLE</b> | 포트: USB 연결 포트 선택 후 업로드`
+    : `📥 Arduino IDE가 설치되지 않은 것 같습니다.<br>
+       <a href="https://www.arduino.cc/en/software" target="_blank">arduino.cc/en/software</a>
+       에서 무료로 설치할 수 있습니다 (Arduino IDE 2 권장).<br>
+       설치 후 다운로드된 .ino 파일을 열어 업로드하세요.`;
+}
+
+function copyFW(rev){
+  const code = rev==='rev1'?FW_REV1:FW_REV2;
+  navigator.clipboard.writeText(code).then(()=>log(`Rev${rev==='rev1'?1:2} 펌웨어 복사됨`,'sys'));
+}
+
+function showFW(){
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('fw-rev1').textContent=FW_REV1;
+  document.getElementById('fw-rev2').textContent=FW_REV2;
+  document.getElementById('fw-proto').textContent=FW_PROTO;
+  document.getElementById('fw-wire').textContent=FW_WIRE;
+  // 초기 IDE 안내 초기화
+  ['rev1','rev2'].forEach(r=>{ document.getElementById('ide-info-'+r).innerHTML=''; });
+}
+function hideFW(){document.getElementById('modal').classList.remove('show');}
+function switchTab(id){
+  const ids=['rev1','rev2','proto','wire'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',ids[i]===id));
+  document.querySelectorAll('.tab-content').forEach((c,i)=>c.classList.toggle('active',['tab-rev1','tab-rev2','tab-proto','tab-wire'][i]==='tab-'+id));
+}
+
+// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// 초기화
+// ═══════════════════════════════════════════════
+buildSensorList();
+log('Arduino Nano 33 BLE 대시보드 v2.1 로드됨','sys');
+log('Web Serial API: '+('serial' in navigator?'지원됨 ✓':'미지원 ✗ — Chrome/Edge 필요'),'serial' in navigator?'sys':'err');
+log('Web Bluetooth API: '+('bluetooth' in navigator?'지원됨 ✓':'미지원 ✗ — Chrome/Edge 필요'),'bluetooth' in navigator?'sys':'err');
+</script>
+</body>
+</html>
